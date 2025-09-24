@@ -2,9 +2,20 @@ provider "aws" {
   region = var.aws_region
 }
 
-resource "aws_key_pair" "deployer" {
-  key_name   = var.key_name
-  public_key = file(var.public_key_path)
+# ✅ Automatically fetch latest Ubuntu 20.04 AMI for this region
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"] # Canonical
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
+  }
+}
+resource "aws_instance" "all_in_one" {
+  ami           = data.aws_ami.ubuntu.id   # ✅ use AMI from data source
+  instance_type = var.instance_type
+  key_name      = aws_key_pair.deployer.key_name
 }
 
 resource "aws_security_group" "all_in_one_sg" {
