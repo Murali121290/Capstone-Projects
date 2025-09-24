@@ -1,20 +1,32 @@
 #!/bin/bash -xe
-# Runs on instance boot. Installs Docker, docker-compose, Java, Jenkins, SonarQube, Minikube prerequisites.
+# Bootstrap: Docker, Docker Compose, Java, Jenkins, SonarQube, Minikube, Scanner
 
-apt-get update
-apt-get install -y docker.io docker-compose apt-transport-https ca-certificates curl gnupg lsb-release conntrack socat unzip
+apt-get update -y
+apt-get install -y \
+  docker.io \
+  apt-transport-https \
+  ca-certificates \
+  curl \
+  gnupg \
+  lsb-release \
+  conntrack \
+  socat \
+  unzip \
+  openjdk-11-jdk
 
-# Add ubuntu user to docker group (assumes ubuntu AMI)
+# Add ubuntu user to docker group
 usermod -aG docker ubuntu || true
 
-# Install Java (required by SonarQube & Jenkins)
-apt-get install -y openjdk-11-jdk
-
-# Start Docker
+# Enable and start Docker
 systemctl enable docker
 systemctl start docker
 
-# Pull and run SonarQube and PostgreSQL (lightweight setup)
+# Install latest Docker Compose (v2.x)
+DOCKER_COMPOSE_VERSION="2.29.7"
+curl -SL https://github.com/docker/compose/releases/download/v${DOCKER_COMPOSE_VERSION}/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
+chmod +x /usr/local/bin/docker-compose
+
+# Prepare SonarQube + PostgreSQL with docker-compose
 cat > /home/ubuntu/sonar-docker-compose.yml <<'EOF'
 version: '3'
 services:
@@ -40,25 +52,36 @@ volumes:
   sonar-db:
 EOF
 
-# Jenkins container
-docker run -d --name jenkins -p 8080:8080 -p 50000:50000 -v /var/jenkins_home:/var/jenkins_home jenkins/jenkins:lts
+chown ubuntu:ubuntu /home/ubuntu/sonar-docker-compose.yml
 
-# Start Sonar services
-docker-compose -f /home/ubuntu/sonar-docker-compose.yml up -d
+# Run Jenkins container
+mkdir -p /var/jenkins_home
+chown -R 1000:1000 /var/jenkins_home
+docker run -d --name jenkins \
+  -p 8080:8080 -p 50000:50000 \
+  -v /var/jenkins_home:/var/jenkins_home \
+  jenkins/jenkins:lts
 
-# Install kubectl and minikube
-curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+# Start SonarQube + DB
+sudo -u ubuntu docker-compose -f /home/ubuntu/sonar-docker-compose.yml up -d
+
+# Install kubectl
+curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl"
 chmod +x kubectl && mv kubectl /usr/local/bin/
 
+# Install minikube
 curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
 chmod +x minikube && mv minikube /usr/local/bin/
 
-# Start minikube using the docker driver
-sudo -u ubuntu bash -lc "minikube start --driver=docker --container-runtime=docker --memory=4096 --cpus=2 || true"
+# Start minikube (with Docker driver)
+sudo -u ubuntu bash -lc "minikube start --driver=docker --memory=4096 --cpus=2 || true"
 
-# Install sonarqube scanner CLI for Jenkins & add to PATH
-curl -sSLo /usr/local/bin/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.7.0.2747-linux.zip || true
-unzip /usr/local/bin/sonar-scanner.zip -d /opt || true
-ln -s /opt/sonar-scanner-*/bin/sonar-scanner /usr/local/bin/sonar-scanner || true
+# Install SonarScanner CLI
+SCANNER_VERSION="4.7.0.2747"
+curl -sSLo /tmp/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SCANNER_VERSION}-linux.zip
+unzip /tmp/sonar-scanner.zip -d /opt
+ln -s /opt/sonar-scanner-*/bin/sonar-scanner /usr/local/bin/sonar-scanner
+rm -f /tmp/sonar-scanner.zip
 
+# Fix ownership
 chown -R ubuntu:ubuntu /home/ubuntu
