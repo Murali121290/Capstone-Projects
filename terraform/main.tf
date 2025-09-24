@@ -101,17 +101,20 @@ resource "aws_iam_instance_profile" "jenkins_profile" {
 
 # ✅ Single EC2 instance
 resource "aws_instance" "all_in_one" {
-  ami                    = data.aws_ami.ubuntu.id   # dynamic AMI lookup
+  ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
   key_name               = aws_key_pair.deployer.key_name
   vpc_security_group_ids = [aws_security_group.all_in_one_sg.id]
   iam_instance_profile   = aws_iam_instance_profile.jenkins_profile.name
+
+  # 👇 This will inject our improved script
   user_data              = file("${path.module}/userdata.sh")
 
   tags = {
     Name = "all-in-one-ci-cd"
   }
 }
+
 
 # ECR repository
 resource "aws_ecr_repository" "app_repo" {
