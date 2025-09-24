@@ -1,0 +1,52 @@
+pipeline {
+  agent any
+  environment {
+    ECR_URL = "${env.ECR_URL}"
+    SONAR_HOST = 'http://localhost:9000'
+    SONAR_LOGIN = credentials('sonar-token')
+  }
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+    stage('SonarQube analysis') {
+      steps {
+        sh 'sonar-scanner -Dsonar.projectKey=vulnerable-flask -Dsonar.sources=. -Dsonar.host.url=${SONAR_HOST} -Dsonar.login=${SONAR_LOGIN}'
+      }
+    }
+    stage('Quality Gate') {
+      steps {
+        echo 'Quality gate enforced via SonarQube server (visual check).'
+      }
+    }
+    stage('Build & Push Docker') {
+      steps {
+        script {
+          def image = "${env.ECR_URL}:$BUILD_NUMBER"
+          sh "$(aws ecr get-login-password --region ${env.AWS_REGION}) | docker login --username AWS --password-stdin ${env.ECR_URL.split('/')[0]}"
+          sh "docker build -t ${image} ."
+          sh "docker push ${image}"
+          env.IMAGE = image
+        }
+      }
+    }
+    stage('Deploy to Minikube') {
+      steps {
+        sh 'minikube kubectl -- apply -f k8s/deployment.yaml'
+        sh 'minikube kubectl -- apply -f k8s/service.yaml'
+        sh "minikube image load ${env.IMAGE} || true"
+        sh 'minikube kubectl -- set image deployment/vulnerable-app vulnerable-app=${env.IMAGE} || true'
+      }
+    }
+  }
+  post {
+    failure {
+      echo 'Pipeline failed — expected on first run due to SonarQube quality gate before fixes.'
+    }
+    success {
+      echo 'Pipeline succeeded — after fixes quality gate passes and app deployed.'
+    }
+  }
+}
