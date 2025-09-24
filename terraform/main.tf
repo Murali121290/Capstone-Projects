@@ -13,6 +13,12 @@ data "aws_ami" "ubuntu" {
   }
 }
 
+# ✅ Create AWS Key Pair from your public key
+resource "aws_key_pair" "deployer" {
+  key_name   = var.key_name
+  public_key = file(pathexpand(var.public_key_path))
+}
+
 # Security group for EC2
 resource "aws_security_group" "all_in_one_sg" {
   name        = "all-in-one-sg"
@@ -110,17 +116,4 @@ resource "aws_instance" "all_in_one" {
 # ECR repository
 resource "aws_ecr_repository" "app_repo" {
   name = "vulnerable-flask-app"
-}
-
-# Outputs
-output "instance_id" {
-  value = aws_instance.all_in_one.id
-}
-
-output "instance_public_ip" {
-  value = aws_instance.all_in_one.public_ip
-}
-
-output "ecr_repository_url" {
-  value = aws_ecr_repository.app_repo.repository_url
 }
