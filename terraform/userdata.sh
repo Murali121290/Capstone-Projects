@@ -62,8 +62,8 @@ docker run -d --name jenkins \
   -v /var/jenkins_home:/var/jenkins_home \
   jenkins/jenkins:lts
 
-# Start SonarQube + DB
-sudo -u ubuntu docker-compose -f /home/ubuntu/sonar-docker-compose.yml up -d
+# ✅ Start SonarQube + DB (use absolute path to docker-compose)
+sudo -u ubuntu /usr/local/bin/docker-compose -f /home/ubuntu/sonar-docker-compose.yml up -d
 
 # Install kubectl
 curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl"
