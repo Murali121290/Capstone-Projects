@@ -4,6 +4,7 @@ pipeline {
     ECR_URL = "${env.ECR_URL}"
     SONAR_HOST = 'http://localhost:9000'
     SONAR_LOGIN = credentials('sonar-token')
+    AWS_REGION = 'ap-south-1' // or your region
   }
   stages {
     stage('Checkout') {
@@ -18,19 +19,16 @@ pipeline {
         }
       }
     }
-    stage('Quality Gate') {
-      steps {
-        echo 'Quality gate enforced via SonarQube server (visual check).'
-      }
-    }
     stage('Build & Push Docker') {
       steps {
-        script {
-          def image = "${env.ECR_URL}:$BUILD_NUMBER"
-          sh "$(aws ecr get-login-password --region ${env.AWS_REGION}) | docker login --username AWS --password-stdin ${env.ECR_URL.split('/')[0]}"
-          sh "docker build -t ${image} ./app"   // build from /app directory
-          sh "docker push ${image}"
-          env.IMAGE = image
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
+          script {
+            def image = "${env.ECR_URL}:${BUILD_NUMBER}"
+            sh '''aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $(echo $ECR_URL | cut -d'/' -f1)'''
+            sh "docker build -t ${image} ./app"
+            sh "docker push ${image}"
+            env.IMAGE = image
+          }
         }
       }
     }
@@ -45,10 +43,10 @@ pipeline {
   }
   post {
     failure {
-      echo 'Pipeline failed — expected on first run due to SonarQube quality gate before fixes.'
+      echo 'Pipeline failed — check credentials or quality gate.'
     }
     success {
-      echo 'Pipeline succeeded — after fixes quality gate passes and app deployed.'
+      echo 'Pipeline succeeded — app deployed!'
     }
   }
 }
