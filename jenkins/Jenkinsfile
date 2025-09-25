@@ -3,7 +3,7 @@ pipeline {
     environment {
         ECR_URL     = "${env.ECR_URL}"          // e.g., 123456789012.dkr.ecr.ap-south-1.amazonaws.com/vulnerable-flask
         AWS_REGION  = "ap-east-1"             // update your AWS region
-        SONAR_HOST  = "http://34.207.210.252:9000"  // SonarQube container IP or host
+        SONAR_HOST  = "http://localhost:9000"  // SonarQube container IP or host
     }
     stages {
 
