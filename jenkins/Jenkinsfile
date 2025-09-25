@@ -4,7 +4,7 @@ pipeline {
     ECR_URL = "${env.ECR_URL}"
     SONAR_HOST = 'http://localhost:9000'
     SONAR_LOGIN = credentials('sonar-token')
-    AWS_REGION = 'ap-south-1' // or your region
+    AWS_REGION = 'ap-east-1' // or your region
   }
   stages {
     stage('Checkout') {
