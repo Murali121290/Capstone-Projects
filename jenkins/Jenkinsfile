@@ -1,52 +1,66 @@
 pipeline {
-  agent any
-  environment {
-    ECR_URL = "${env.ECR_URL}"
-    SONAR_HOST = 'http://localhost:9000'
-    SONAR_LOGIN = credentials('sonar-token')
-    AWS_REGION = 'ap-east-1' // or your region
-  }
-  stages {
-    stage('Checkout') {
-      steps {
-        checkout scm
-      }
+    agent any
+    environment {
+        ECR_URL     = "${env.ECR_URL}"          // e.g., 123456789012.dkr.ecr.ap-south-1.amazonaws.com/vulnerable-flask
+        AWS_REGION  = "ap-east-1"             // update your AWS region
+        SONAR_HOST  = "http://34.207.210.252:9000"  // SonarQube container IP or host
     }
-    stage('SonarQube analysis') {
-      steps {
-        dir('jenkins') {
-          sh 'sonar-scanner -Dproject.settings=sonar-project.properties'
+    stages {
+
+        stage('Checkout SCM') {
+            steps {
+                checkout scm
+            }
         }
-      }
-    }
-    stage('Build & Push Docker') {
-      steps {
-        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
-          script {
-            def image = "${env.ECR_URL}:${BUILD_NUMBER}"
-            sh '''aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $(echo $ECR_URL | cut -d'/' -f1)'''
-            sh "docker build -t ${image} ./app"
-            sh "docker push ${image}"
-            env.IMAGE = image
-          }
+
+        stage('SonarQube Analysis') {
+            steps {
+                dir('jenkins') {
+                    withCredentials([string(credentialsId: 'sonar-scanner', variable: 'SONAR_LOGIN')]) {
+                        sh '''
+                        docker run --rm \
+                            -e SONAR_HOST_URL=${SONAR_HOST} \
+                            -e SONAR_LOGIN=$SONAR_LOGIN \
+                            -v $(pwd):/usr/src \
+                            sonarsource/sonar-scanner-cli
+                        '''
+                    }
+                }
+            }
         }
-      }
+
+        stage('Build & Push Docker') {
+            steps {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
+                    script {
+                        def image = "${env.ECR_URL}:${BUILD_NUMBER}"
+                        sh '''
+                        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $(echo $ECR_URL | cut -d'/' -f1)
+                        docker build -t ${image} ./app
+                        docker push ${image}
+                        '''
+                        env.IMAGE = image
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Minikube') {
+            steps {
+                sh 'minikube kubectl -- apply -f k8s/deployment.yaml'
+                sh 'minikube kubectl -- apply -f k8s/service.yaml'
+                sh 'minikube image load ${env.IMAGE} || true'
+                sh 'minikube kubectl -- set image deployment/vulnerable-app vulnerable-app=${env.IMAGE} || true'
+            }
+        }
     }
-    stage('Deploy to Minikube') {
-      steps {
-        sh 'minikube kubectl -- apply -f k8s/deployment.yaml'
-        sh 'minikube kubectl -- apply -f k8s/service.yaml'
-        sh "minikube image load ${env.IMAGE} || true"
-        sh 'minikube kubectl -- set image deployment/vulnerable-app vulnerable-app=${env.IMAGE} || true'
-      }
+
+    post {
+        success {
+            echo 'Pipeline succeeded — Sonar passed, Docker pushed, app deployed!'
+        }
+        failure {
+            echo 'Pipeline failed — check Sonar scan, credentials, or build errors.'
+        }
     }
-  }
-  post {
-    failure {
-      echo 'Pipeline failed — check credentials or quality gate.'
-    }
-    success {
-      echo 'Pipeline succeeded — app deployed!'
-    }
-  }
 }
