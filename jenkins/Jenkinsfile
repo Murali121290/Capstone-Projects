@@ -13,7 +13,9 @@ pipeline {
     }
     stage('SonarQube analysis') {
       steps {
-        sh 'sonar-scanner -Dsonar.projectKey=vulnerable-flask -Dsonar.sources=. -Dsonar.host.url=${SONAR_HOST} -Dsonar.login=${SONAR_LOGIN}'
+        dir('jenkins') {
+          sh 'sonar-scanner -Dproject.settings=sonar-project.properties'
+        }
       }
     }
     stage('Quality Gate') {
@@ -26,7 +28,7 @@ pipeline {
         script {
           def image = "${env.ECR_URL}:$BUILD_NUMBER"
           sh "$(aws ecr get-login-password --region ${env.AWS_REGION}) | docker login --username AWS --password-stdin ${env.ECR_URL.split('/')[0]}"
-          sh "docker build -t ${image} ."
+          sh "docker build -t ${image} ./app"   // build from /app directory
           sh "docker push ${image}"
           env.IMAGE = image
         }
