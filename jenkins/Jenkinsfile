@@ -1,30 +1,41 @@
 pipeline {
     agent any
     environment {
-        ECR_URL     = "${env.ECR_URL}"          // e.g., 123456789012.dkr.ecr.ap-south-1.amazonaws.com/vulnerable-flask
-        AWS_REGION  = "ap-east-1"             // update your AWS region
-        SONAR_HOST  = "http://localhost:9000"  // SonarQube container IP or host
+        ECR_URL     = "${env.ECR_URL}"
+        AWS_REGION  = "ap-south-1"  // Fixed: consistent region
+        SONAR_HOST  = "http://localhost:9000"
     }
+    
     stages {
-
         stage('Checkout SCM') {
             steps {
                 checkout scm
             }
         }
 
-        stage('SonarQube Analysis') {
-            steps {
-                dir('jenkins') {
-withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_LOGIN')]) {
-    sh '''
-    docker run --rm \
-        -e SONAR_HOST_URL=${SONAR_HOST} \
-        -e SONAR_LOGIN=$SONAR_LOGIN \
-        -v $(pwd):/usr/src \
-        sonarsource/sonar-scanner-cli
-    '''
-}
+        stage('Code Quality Check') {
+            parallel {
+                stage('SonarQube Analysis') {
+                    steps {
+                        withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_LOGIN')]) {
+                            sh '''
+                            docker run --rm \
+                                -e SONAR_HOST_URL=${SONAR_HOST} \
+                                -e SONAR_LOGIN=$SONAR_LOGIN \
+                                -v $(pwd)/jenkins:/usr/src \
+                                -w /usr/src \
+                                sonarsource/sonar-scanner-cli
+                            '''
+                        }
+                    }
+                }
+                stage('Security Scan') {
+                    steps {
+                        sh '''
+                        # Run security tools like trivy or bandit
+                        docker run --rm -v $(pwd):/src aquasec/trivy fs /src || true
+                        '''
+                    }
                 }
             }
         }
@@ -34,11 +45,15 @@ withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_LOGIN')])
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds']]) {
                     script {
                         def image = "${env.ECR_URL}:${BUILD_NUMBER}"
-                        sh '''
-                        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $(echo $ECR_URL | cut -d'/' -f1)
+                        def ecrRegistry = env.ECR_URL.split('/')[0]
+                        
+                        sh """
+                        aws ecr get-login-password --region ${AWS_REGION} | \
+                            docker login --username AWS --password-stdin ${ecrRegistry}
+                        
                         docker build -t ${image} ./app
                         docker push ${image}
-                        '''
+                        """
                         env.IMAGE = image
                     }
                 }
@@ -47,20 +62,38 @@ withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_LOGIN')])
 
         stage('Deploy to Minikube') {
             steps {
-                sh 'minikube kubectl -- apply -f k8s/deployment.yaml'
-                sh 'minikube kubectl -- apply -f k8s/service.yaml'
-                sh 'minikube image load ${env.IMAGE} || true'
-                sh 'minikube kubectl -- set image deployment/vulnerable-app vulnerable-app=${env.IMAGE} || true'
+                script {
+                    sh """
+                    minikube kubectl -- apply -f k8s/
+                    minikube image load ${env.IMAGE} || true
+                    minikube kubectl -- set image deployment/vulnerable-app vulnerable-app=${env.IMAGE}
+                    minikube kubectl -- rollout status deployment/vulnerable-app --timeout=300s
+                    """
+                }
+            }
+        }
+        
+        stage('Smoke Test') {
+            steps {
+                sh """
+                minikube kubectl -- wait --for=condition=ready pod -l app=vulnerable-app --timeout=120s
+                # Add actual API test calls here
+                """
             }
         }
     }
 
     post {
+        always {
+            echo "Pipeline execution completed - Build: ${BUILD_NUMBER}"
+            cleanWs()  // Clean workspace
+        }
         success {
-            echo 'Pipeline succeeded — Sonar passed, Docker pushed, app deployed!'
+            echo 'Pipeline succeeded! Application deployed successfully.'
         }
         failure {
-            echo 'Pipeline failed — check Sonar scan, credentials, or build errors.'
+            echo 'Pipeline failed. Check logs for details.'
+            // Add notification here (email, Slack, etc.)
         }
     }
 }
