@@ -16,15 +16,15 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 dir('jenkins') {
-                    withCredentials([string(credentialsId: 'sonar-scanner', variable: 'SONAR_LOGIN')]) {
-                        sh '''
-                        docker run --rm \
-                            -e SONAR_HOST_URL=${SONAR_HOST} \
-                            -e SONAR_LOGIN=$SONAR_LOGIN \
-                            -v $(pwd):/usr/src \
-                            sonarsource/sonar-scanner-cli
-                        '''
-                    }
+withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_LOGIN')]) {
+    sh '''
+    docker run --rm \
+        -e SONAR_HOST_URL=${SONAR_HOST} \
+        -e SONAR_LOGIN=$SONAR_LOGIN \
+        -v $(pwd):/usr/src \
+        sonarsource/sonar-scanner-cli
+    '''
+}
                 }
             }
         }
