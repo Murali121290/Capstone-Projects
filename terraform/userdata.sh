@@ -19,7 +19,7 @@ sudo apt-get install -y docker.io git curl wget unzip openjdk-17-jdk apt-transpo
 sudo systemctl enable docker
 sudo systemctl start docker
 
-# Add ubuntu and jenkins users to Docker group
+# Add ubuntu user to Docker group
 sudo usermod -aG docker ubuntu
 
 # Add Jenkins repo (secure method with .gpg key)
@@ -52,3 +52,9 @@ sudo install minikube-linux-amd64 /usr/local/bin/minikube
 # Install kubectl
 curl -LO "https://dl.k8s.io/release/$(curl -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+# --- Reboot if required ---
+if [ -f /var/run/reboot-required ]; then
+  echo "System reboot required. Rebooting..."
+  sudo reboot
+fi
