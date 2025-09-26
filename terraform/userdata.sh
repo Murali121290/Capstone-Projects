@@ -1,4 +1,6 @@
+
 #!/bin/bash
+exec > /var/log/userdata.log 2>&1
 set -xe
 
 # --- Wait for apt locks (important in cloud-init) ---
