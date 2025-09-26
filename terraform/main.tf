@@ -70,7 +70,7 @@ resource "aws_security_group" "ec2_sg" {
 # EC2 instance
 resource "aws_instance" "dev_server" {
   ami           = "ami-0fc5d935ebf8bc3bc" # Ubuntu 22.04 us-east-1
-  instance_type = "t3.medium"
+  instance_type = "t2.medium"
   key_name      = var.key_name
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
 
