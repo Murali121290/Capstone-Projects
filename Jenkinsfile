@@ -13,20 +13,16 @@ pipeline {
                 git branch: 'main', url: 'https://github.com/Murali121290/Capstone-Projects.git'
             }
         }
-
-        stage('SonarQube Analysis') {
-            steps {
-                withSonarQubeEnv('SonarQube') {
-                    sh '''
-                      docker run --rm \
-                        -e SONAR_HOST_URL=$SONAR_HOST_URL \
-                        -e SONAR_LOGIN=$SONAR_AUTH_TOKEN \
-                        -v $PWD:/usr/src \
-                        sonarsource/sonar-scanner-cli
-                    '''
-                }
+stage('SonarQube Analysis') {
+    steps {
+        withSonarQubeEnv('SonarQube') {
+            script {
+                def scannerHome = tool 'SonarScanner'
+                sh "${scannerHome}/bin/sonar-scanner"
             }
         }
+    }
+}
 
         stage('Quality Gate') {
             steps {
