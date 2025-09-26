@@ -4,7 +4,7 @@ pipeline {
   options { timestamps(); disableConcurrentBuilds() }
 
   environment {
-    APP_NAME   = 'myweb'
+    APP_NAME   = 'myapp'
     IMAGE_TAG  = "${env.BUILD_NUMBER ?: 'latest'}"
   }
 
