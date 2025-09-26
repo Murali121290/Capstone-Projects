@@ -19,7 +19,7 @@ data "aws_vpc" "default" {
 
 # Security Group
 resource "aws_security_group" "ec2_sg" {
-  name        = "dev_server_sg"
+  name        = "dev_server_sg1"
   description = "Allow SSH, HTTP, Jenkins, and SonarQube"
   vpc_id      = data.aws_vpc.default.id
 
