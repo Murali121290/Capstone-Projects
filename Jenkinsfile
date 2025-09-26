@@ -4,8 +4,8 @@ pipeline {
   options { timestamps(); disableConcurrentBuilds() }
 
   environment {
-    APP_NAME   = 'myapp'
-    IMAGE_TAG  = "${env.BUILD_NUMBER ?: 'latest'}"
+    APP_NAME  = 'myapp'
+    IMAGE_TAG = "${env.BUILD_NUMBER ?: 'latest'}"
   }
 
   stages {
@@ -18,9 +18,10 @@ pipeline {
     stage('SonarQube Analysis') {
       steps {
         script {
-          def scannerHome = tool 'SonarScanner'
-          withSonarQubeEnv('sonar-local') {
+          def scannerHome = tool 'SonarScanner'    // must match Global Tool Config
+          withSonarQubeEnv('sonar-local') {        // must match Configure System → SonarQube server name
             sh """
+              set -e
               "${scannerHome}/bin/sonar-scanner"
             """
           }
@@ -30,7 +31,7 @@ pipeline {
 
     stage('Quality Gate') {
       steps {
-        timeout(time: 5, unit: 'MINUTES') {
+        timeout(time: 3, unit: 'MINUTES') {
           waitForQualityGate abortPipeline: true
         }
       }
