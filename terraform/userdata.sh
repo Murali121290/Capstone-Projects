@@ -2,16 +2,19 @@
 set -xe
 
 # Update system
-apt-get update -y
-apt-get upgrade -y
+sudo apt-get update -y
+sudo apt-get upgrade -y
 
 # Install basic tools
-apt-get install -y docker.io git curl wget unzip openjdk-11-jdk apt-transport-https ca-certificates gnupg lsb-release
+sudo apt-get install -y docker.io git curl wget unzip openjdk-11-jdk apt-transport-https ca-certificates gnupg lsb-release
 
 # Enable and start Docker
-systemctl enable docker
-systemctl start docker
-usermod -aG docker ubuntu
+sudo systemctl enable docker
+sudo systemctl start docker
+
+# Add ubuntu user to docker group (so 'docker ps' works without sudo)
+sudo usermod -aG docker ubuntu
+echo "newgrp docker" >> /home/ubuntu/.bashrc
 
 # Install Jenkins
 curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | tee \
@@ -19,13 +22,13 @@ curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | tee \
 echo deb [signed-by=/usr/share/keyrings/jenkins-key.gpg] \
   https://pkg.jenkins.io/debian-stable binary/ | tee \
   /etc/apt/sources.list.d/jenkins.list > /dev/null
-apt-get update -y
-apt-get install -y jenkins
-systemctl enable jenkins
-systemctl start jenkins
+sudo apt-get update -y
+sudo apt-get install -y jenkins
+sudo systemctl enable jenkins
+sudo systemctl start jenkins
 
 # Run SonarQube (Docker)
-docker run -d --name sonarqube -p 9000:9000 sonarqube:lts-community
+sudo docker run -d --name sonarqube -p 9000:9000 sonarqube:lts-community
 
 # Install Minikube
 curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
