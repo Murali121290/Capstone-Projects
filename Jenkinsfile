@@ -4,20 +4,26 @@ pipeline {
     environment {
         APP_NAME   = 'myapp'
         IMAGE_TAG  = "${env.BUILD_NUMBER ?: 'latest'}"
-        SONARQUBE  = 'SonarQube'   // Name configured in Jenkins -> Manage Jenkins -> Configure System -> SonarQube Servers
+        SONARQUBE  = 'SonarQube'   // Jenkins → Manage Jenkins → Configure System → SonarQube Servers
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/murali121290/Capstone-Projects.git'
+                git branch: 'main', url: 'https://github.com/Murali121290/Capstone-Projects.git'
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    sh 'sonar-scanner'
+                    sh '''
+                      docker run --rm \
+                        -e SONAR_HOST_URL=$SONAR_HOST_URL \
+                        -e SONAR_LOGIN=$SONAR_AUTH_TOKEN \
+                        -v $PWD:/usr/src \
+                        sonarsource/sonar-scanner-cli
+                    '''
                 }
             }
         }
@@ -49,7 +55,6 @@ pipeline {
         stage('Deploy to Minikube') {
             steps {
                 sh """
-                  # Replace placeholder in k8s manifest with built image
                   sed -i 's#IMAGE_PLACEHOLDER#${APP_NAME}:${IMAGE_TAG}#g' k8s/deployment.yaml
                   kubectl apply -f k8s/deployment.yaml
                   kubectl apply -f k8s/service.yaml
@@ -57,19 +62,18 @@ pipeline {
             }
         }
 
-stage('Smoke Test') {
-    steps {
-        sh '''
-          kubectl rollout status deployment/$APP_NAME --timeout=120s
-          NODE_IP=$(minikube ip)
-          NODE_PORT=$(kubectl get svc $APP_NAME -o=jsonpath="{.spec.ports[0].nodePort}")
-          echo "Testing app at http://$NODE_IP:$NODE_PORT/"
-          sleep 5
-          curl -f http://$NODE_IP:$NODE_PORT/ || (echo "App not reachable" && exit 1)
-        '''
-    }
-}
-
+        stage('Smoke Test') {
+            steps {
+                sh '''
+                  kubectl rollout status deployment/$APP_NAME --timeout=120s
+                  NODE_IP=$(minikube ip)
+                  NODE_PORT=$(kubectl get svc $APP_NAME -o=jsonpath='{.spec.ports[0].nodePort}')
+                  echo "Testing app at http://$NODE_IP:$NODE_PORT/"
+                  sleep 5
+                  curl -f http://$NODE_IP:$NODE_PORT/ || (echo "App not reachable" && exit 1)
+                '''
+            }
+        }
     }
 
     post {
