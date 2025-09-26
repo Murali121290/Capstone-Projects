@@ -2,20 +2,25 @@
 set -xe
 
 # Update system
-dnf update -y
+apt-get update -y
+apt-get upgrade -y
 
 # Install basic tools
-dnf install -y docker git curl wget unzip java-11-openjdk
+apt-get install -y docker.io git curl wget unzip openjdk-11-jdk apt-transport-https ca-certificates gnupg lsb-release
 
 # Enable and start Docker
 systemctl enable docker
 systemctl start docker
-usermod -aG docker ec2-user
+usermod -aG docker ubuntu
 
 # Install Jenkins
-rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
-curl -fsSL https://pkg.jenkins.io/redhat-stable/jenkins.repo -o /etc/yum.repos.d/jenkins.repo
-dnf install -y jenkins
+curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | tee \
+  /usr/share/keyrings/jenkins-key.gpg > /dev/null
+echo deb [signed-by=/usr/share/keyrings/jenkins-key.gpg] \
+  https://pkg.jenkins.io/debian-stable binary/ | tee \
+  /etc/apt/sources.list.d/jenkins.list > /dev/null
+apt-get update -y
+apt-get install -y jenkins
 systemctl enable jenkins
 systemctl start jenkins
 
