@@ -4,7 +4,15 @@ provider "aws" {
 
 # Key pair (you should already have an SSH key in AWS)
 variable "key_name" {
-  default = "my-keypair" # replace with your actual key pair name
+  description = "Name of the EC2 key pair in AWS (not the .pem file)."
+  type        = string
+  default     = "murali26jul2025"   # change if your AWS key pair name differs
+}
+
+variable "private_key_path" {
+  description = "Local path to the private key (.pem) used for SSH."
+  type        = string
+  default     = "~/.ssh/murali26jul2025.pem"  # update to actual path if different
 }
 
 # Security group to allow SSH and HTTP
