@@ -57,18 +57,19 @@ pipeline {
             }
         }
 
-        stage('Smoke Test') {
-            steps {
-                sh """
-                  kubectl rollout status deployment/${APP_NAME} --timeout=120s
-                  NODE_IP=$(minikube ip)
-                  NODE_PORT=$(kubectl get svc ${APP_NAME} -o=jsonpath='{.spec.ports[0].nodePort}')
-                  echo "Testing app at http://${NODE_IP}:${NODE_PORT}/"
-                  sleep 5
-                  curl -f http://${NODE_IP}:${NODE_PORT}/ || (echo "App not reachable" && exit 1)
-                """
-            }
-        }
+stage('Smoke Test') {
+    steps {
+        sh '''
+          kubectl rollout status deployment/$APP_NAME --timeout=120s
+          NODE_IP=$(minikube ip)
+          NODE_PORT=$(kubectl get svc $APP_NAME -o=jsonpath="{.spec.ports[0].nodePort}")
+          echo "Testing app at http://$NODE_IP:$NODE_PORT/"
+          sleep 5
+          curl -f http://$NODE_IP:$NODE_PORT/ || (echo "App not reachable" && exit 1)
+        '''
+    }
+}
+
     }
 
     post {
