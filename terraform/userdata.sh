@@ -12,8 +12,8 @@ done
 sudo apt-get update -y
 sudo apt-get upgrade -y
 
-# Install basic tools + Java 17 (required for Jenkins)
-sudo apt-get install -y docker.io git curl wget unzip openjdk-17-jdk apt-transport-https ca-certificates gnupg lsb-release software-properties-common fontconfig
+# Install Docker + Java 17 + basic tools
+sudo apt-get install -y docker.io git curl wget unzip openjdk-17-jdk apt-transport-https ca-certificates gnupg lsb-release software-properties-common fontconfig conntrack
 
 # Enable and start Docker
 sudo systemctl enable docker
@@ -22,38 +22,55 @@ sudo systemctl start docker
 # Add ubuntu user to Docker group
 sudo usermod -aG docker ubuntu
 
-# Add Jenkins repo (secure method with .gpg key)
-curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | gpg --dearmor | sudo tee /usr/share/keyrings/jenkins-keyring.gpg > /dev/null
-echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.gpg] https://pkg.jenkins.io/debian-stable binary/" | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
-
-# Install Jenkins
-sudo apt-get update -y
-sudo apt-get install -y jenkins
-
-# Enable and start Jenkins
-sudo systemctl enable jenkins
-sudo systemctl start jenkins
-
-# Add Jenkins user to Docker group
-sudo usermod -aG docker jenkins
-
-# Restart Jenkins to apply group changes
-sudo systemctl restart jenkins
-
-# Run SonarQube (only if not already running)
-if [ ! "$(sudo docker ps -q -f name=sonarqube)" ]; then
-  sudo docker run -d --name sonarqube -p 9000:9000 sonarqube:lts-community
+# -------------------------------
+# Run Jenkins in Docker (port 8080)
+# -------------------------------
+if [ ! "$(sudo docker ps -q -f name=jenkins)" ]; then
+  sudo docker run -d --name jenkins --restart unless-stopped \
+    -p 8080:8080 -p 50000:50000 \
+    -v jenkins_home:/var/jenkins_home \
+    jenkins/jenkins:lts-jdk17
 fi
 
+# -------------------------------
+# Run SonarQube in Docker with volumes (port 9000)
+# -------------------------------
+sudo sysctl --system
+sudo docker volume create sonarqube_data
+sudo docker volume create sonarqube_extensions
+sudo docker volume create sonarqube_logs
+
+if [ ! "$(sudo docker ps -q -f name=sonarqube)" ]; then
+  sudo docker run -d --name sonarqube --restart unless-stopped \
+    -p 9000:9000 \
+    -v sonarqube_data:/opt/sonarqube/data \
+    -v sonarqube_extensions:/opt/sonarqube/extensions \
+    -v sonarqube_logs:/opt/sonarqube/logs \
+    sonarqube:lts-community
+fi
+
+# -------------------------------
 # Install Minikube
+# -------------------------------
 curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
 sudo install minikube-linux-amd64 /usr/local/bin/minikube
 
-# Install kubectl
-curl -LO "https://dl.k8s.io/release/$(curl -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+# -------------------------------
+# Install kubectl (via snap, auto-updates)
+# -------------------------------
+sudo snap install kubectl --classic
 
-# --- Reboot if required ---
+# -------------------------------
+# Start Minikube (Docker driver)
+# -------------------------------
+# Force Docker group immediately for ubuntu user
+newgrp docker <<EONG
+minikube start --driver=docker
+EONG
+
+# -------------------------------
+# Reboot if required
+# -------------------------------
 if [ -f /var/run/reboot-required ]; then
   echo "System reboot required. Rebooting..."
   sudo reboot
