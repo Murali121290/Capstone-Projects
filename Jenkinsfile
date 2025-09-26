@@ -1,98 +1,80 @@
 pipeline {
-  agent any
+    agent any
 
-  environment {
-    APP_NAME = 'myapp'
-    IMAGE_TAG = "${env.BUILD_ID ?: 'local'}"
-    SONARQUBE_SERVER = 'SonarQube'   // name configured in Jenkins -> Configure System -> SonarQube servers
-  }
-
-  stages {
-    stage('Checkout') {
-      steps {
-        checkout scm
-      }
+    environment {
+        APP_NAME   = 'myapp'
+        IMAGE_TAG  = "${env.BUILD_NUMBER ?: 'latest'}"
+        SONARQUBE  = 'SonarQube'   // Name configured in Jenkins -> Manage Jenkins -> Configure System -> SonarQube Servers
     }
 
-    stage('Code Quality (SonarQube)') {
-      steps {
-        // Use SonarScanner CLI docker image to run scan or use installed scanner
-        // This block assumes you have 'withSonarQubeEnv' available (Sonar plugin installed)
-        withSonarQubeEnv(SONARQUBE_SERVER) {
-          sh """
-            # run sonar scanner; adjust for your project (maven/gradle/sonar-scanner)
-            # If using a simple python app, use sonar-scanner CLI with properties:
-            docker run --rm \
-              -v \$(pwd):/usr/src/app \
-              -v /tmp:/tmp \
-              sonarsource/sonar-scanner-cli \
-              -Dsonar.projectKey=${APP_NAME} \
-              -Dsonar.sources=. \
-              -Dsonar.host.url=${env.SONAR_HOST_URL} \
-              -Dsonar.login=${env.SONAR_AUTH_TOKEN}
-          """
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/<your-username>/Capstone-Projects.git'
+            }
         }
-      }
-    }
 
-    stage("Wait for SonarQube Quality Gate") {
-      steps {
-        timeout(time: 5, unit: 'MINUTES') {
-          // This step requires SonarQube plugin and the previous stage published analysis
-          waitForQualityGate abortPipeline: true
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh 'sonar-scanner'
+                }
+            }
         }
-      }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh """
+                  docker build -t ${APP_NAME}:${IMAGE_TAG} .
+                """
+            }
+        }
+
+        stage('Load Image into Minikube') {
+            steps {
+                sh """
+                  minikube image load ${APP_NAME}:${IMAGE_TAG} --profile=minikube
+                """
+            }
+        }
+
+        stage('Deploy to Minikube') {
+            steps {
+                sh """
+                  # Replace placeholder in k8s manifest with built image
+                  sed -i 's#IMAGE_PLACEHOLDER#${APP_NAME}:${IMAGE_TAG}#g' k8s/deployment.yaml
+                  kubectl apply -f k8s/deployment.yaml
+                  kubectl apply -f k8s/service.yaml
+                """
+            }
+        }
+
+        stage('Smoke Test') {
+            steps {
+                sh """
+                  kubectl rollout status deployment/${APP_NAME} --timeout=120s
+                  NODE_IP=$(minikube ip)
+                  NODE_PORT=$(kubectl get svc ${APP_NAME} -o=jsonpath='{.spec.ports[0].nodePort}')
+                  echo "Testing app at http://${NODE_IP}:${NODE_PORT}/"
+                  sleep 5
+                  curl -f http://${NODE_IP}:${NODE_PORT}/ || (echo "App not reachable" && exit 1)
+                """
+            }
+        }
     }
 
-    stage('Build Docker image') {
-      steps {
-        sh """
-          # Build on host docker (jenkins container has access to /var/run/docker.sock)
-          docker build -t ${APP_NAME}:${IMAGE_TAG} .
-        """
-      }
+    post {
+        always {
+            echo "Cleaning up workspace"
+            cleanWs()
+        }
     }
-
-    stage('Load image into Minikube') {
-      steps {
-        sh """
-          # Use minikube's image load so the cluster can use the built image
-          # Jenkins container has /usr/local/bin/minikube mounted; minikube config is inherited
-          minikube image load ${APP_NAME}:${IMAGE_TAG} --profile=minikube
-        """
-      }
-    }
-
-    stage('Deploy to Minikube') {
-      steps {
-        sh """
-          # Update k8s manifest with tag and apply
-          sed -i 's#IMAGE_PLACEHOLDER#${APP_NAME}:${IMAGE_TAG}#g' k8s/deployment.yaml
-          kubectl apply -f k8s/deployment.yaml
-          kubectl apply -f k8s/service.yaml
-        """
-      }
-    }
-
-    stage('Smoke Test') {
-      steps {
-        sh """
-          # Wait for pod to be ready then curl the service via nodeport
-          kubectl rollout status deployment/${APP_NAME} --timeout=120s
-          NODE_PORT=$(kubectl get svc ${APP_NAME} -o=jsonpath='{.spec.ports[0].nodePort}')
-          NODE_IP=$(minikube ip)
-          echo "Waiting for app at http://${NODE_IP}:${NODE_PORT}/"
-          sleep 5
-          curl -f http://${NODE_IP}:${NODE_PORT}/ || (kubectl get pods -o wide; kubectl describe svc ${APP_NAME}; exit 1)
-        """
-      }
-    }
-  }
-
-  post {
-    always {
-      archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
-      junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
-    }
-  }
 }
