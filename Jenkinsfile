@@ -15,22 +15,13 @@ pipeline {
       }
     }
 
-    stage('SonarQube Analysis') {
-      steps {
-        withSonarQubeEnv('SonarQube') {   // must match Jenkins SonarQube config name
-          script {
-            def scannerHome = tool 'SonarScanner'  // must match Jenkins Global Tool Config
-            sh """
-              set -e
-              "${scannerHome}/bin/sonar-scanner" \
-                -Dsonar.projectKey=${APP_NAME} \
-                -Dsonar.sources=. \
-                -Dsonar.sourceEncoding=UTF-8
-            """
-          }
-        }
-      }
+ stage('SonarQube Analysis') {
+    def scannerHome = tool 'SonarScanner';
+    withSonarQubeEnv() {
+      sh "${scannerHome}/bin/sonar-scanner"
     }
+  }
+}
 
     stage('Quality Gate') {
       steps {
