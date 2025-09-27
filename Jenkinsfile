@@ -30,9 +30,11 @@ pipeline {
     }
 
     stage('Quality Gate') {
-      catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-        timeout(time: 10, unit: 'MINUTES') {
-          waitForQualityGate abortPipeline: true
+      steps {
+        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+          timeout(time: 10, unit: 'MINUTES') {
+            waitForQualityGate abortPipeline: true
+          }
         }
       }
     }
