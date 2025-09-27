@@ -1,2 +1,30 @@
-Flask==2.2.5
-requests==2.31.0
+# Web framework
+Flask==2.3.6
+
+# Database support (sqlite3 is built-in, no extra package needed)
+# Optional: SQLAlchemy if you want ORM in future
+# SQLAlchemy==2.0.26
+
+# Shell command parsing
+# shlex is built-in
+
+# Logging is built-in
+
+# Testing & coverage
+pytest==7.4.2
+pytest-cov==4.1.0
+
+# Linting & static analysis
+pylint==2.20.2
+flake8==6.1.0
+black==23.12.0
+isort==5.12.0
+
+# Type checking
+mypy==1.5.1
+
+# Security analysis
+bandit==1.8.2
+
+# Optional: JSON schema validation
+jsonschema==4.19.0
