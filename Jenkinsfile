@@ -19,7 +19,7 @@ pipeline {
       steps {
         script {
           def scannerHome = tool 'SonarScanner'    // must match Global Tool Config
-          withSonarQubeEnv('sonar-local') {        // must match Configure System → SonarQube server name
+          withSonarQubeEnv('SonarQube') {        // must match Configure System → SonarQube server name
             sh """
               set -e
               "${scannerHome}/bin/sonar-scanner"
