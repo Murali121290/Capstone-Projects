@@ -1,11 +1,5 @@
 pipeline {
-  agent {
-    docker {
-      image 'docker:24.0.2'   // Docker-enabled Jenkins agent
-      args '-v /var/run/docker.sock:/var/run/docker.sock'
-    }
-  }
-
+  agent any
   triggers { githubPush() }
   options { timestamps(); disableConcurrentBuilds() }
 
@@ -63,24 +57,22 @@ pipeline {
 
     stage('Build Docker Image') {
       steps {
-        sh """
-          docker build -t ${APP_NAME}:${IMAGE_TAG} .
-        """
+        script {
+          sh "docker --version"  // sanity check
+          sh "docker build -t ${APP_NAME}:${IMAGE_TAG} ."
+        }
       }
     }
 
     stage('Load Image into Minikube') {
       steps {
-        sh """
-          minikube image load ${APP_NAME}:${IMAGE_TAG} --profile=minikube
-        """
+        sh "minikube image load ${APP_NAME}:${IMAGE_TAG} --profile=minikube"
       }
     }
 
     stage('Deploy to Minikube') {
       steps {
         sh """
-          # Replace image placeholder in deployment manifest
           sed -i 's#IMAGE_PLACEHOLDER#${APP_NAME}:${IMAGE_TAG}#g' k8s/deployment.yaml
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
@@ -92,26 +84,11 @@ pipeline {
       steps {
         sh """
           kubectl rollout status deployment/${APP_NAME} --timeout=120s
-
           NODE_IP=\$(minikube ip)
           NODE_PORT=\$(kubectl get svc ${APP_NAME} -o=jsonpath='{.spec.ports[0].nodePort}')
           URL="http://\$NODE_IP:\$NODE_PORT/"
-
           echo "Testing app at \$URL"
-
-          MAX_RETRIES=5
-          RETRY_COUNT=0
-          until curl -f \$URL; do
-            RETRY_COUNT=\$((RETRY_COUNT+1))
-            if [ \$RETRY_COUNT -ge \$MAX_RETRIES ]; then
-              echo "App not reachable after \$MAX_RETRIES attempts"
-              exit 1
-            fi
-            echo "Retry \$RETRY_COUNT of \$MAX_RETRIES..."
-            sleep 5
-          done
-
-          echo "App is reachable!"
+          curl -f \$URL
         """
       }
     }
