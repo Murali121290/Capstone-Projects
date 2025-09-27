@@ -1,5 +1,11 @@
 pipeline {
-  agent any
+  agent {
+    docker {
+      image 'docker:24.0.2'   // Docker-enabled Jenkins agent
+      args '-v /var/run/docker.sock:/var/run/docker.sock'
+    }
+  }
+
   triggers { githubPush() }
   options { timestamps(); disableConcurrentBuilds() }
 
@@ -18,8 +24,8 @@ pipeline {
     stage('SonarQube Analysis') {
       steps {
         script {
-          def scannerHome = tool 'SonarScanner'    // must match Global Tool Config
-          withSonarQubeEnv('SonarQube') {        // must match Configure System → SonarQube server name
+          def scannerHome = tool 'SonarScanner'
+          withSonarQubeEnv('SonarQube') {
             sh """
               set -e
               "${scannerHome}/bin/sonar-scanner"
@@ -31,9 +37,25 @@ pipeline {
 
     stage('Quality Gate') {
       steps {
-        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-          timeout(time: 10, unit: 'MINUTES') {
-            waitForQualityGate abortPipeline: true
+        script {
+          catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+            timeout(time: 30, unit: 'MINUTES') {
+              echo "Waiting for SonarQube Quality Gate..."
+              def qg = null
+              while (qg == null || qg.status == 'IN_PROGRESS') {
+                sleep 15
+                qg = waitForQualityGate abortPipeline: false
+                if (qg == null) {
+                  echo "SonarQube analysis not ready yet..."
+                } else if (qg.status == 'OK') {
+                  echo "Quality Gate passed!"
+                } else if (qg.status == 'ERROR') {
+                  error "Quality Gate failed!"
+                } else {
+                  echo "SonarQube status: ${qg.status} (still in progress...)"
+                }
+              }
+            }
           }
         }
       }
@@ -58,15 +80,8 @@ pipeline {
     stage('Deploy to Minikube') {
       steps {
         sh """
-          # Export environment variables for envsubst
-          export APP_NAME=${APP_NAME}
-          export IMAGE_TAG=${APP_NAME}:${IMAGE_TAG}
-
-          # Generate final manifests from templates
-          envsubst < k8s/deployment-template.yaml > k8s/deployment.yaml
-          envsubst < k8s/service-template.yaml > k8s/service.yaml
-
-          # Apply manifests
+          # Replace image placeholder in deployment manifest
+          sed -i 's#IMAGE_PLACEHOLDER#${APP_NAME}:${IMAGE_TAG}#g' k8s/deployment.yaml
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
         """
@@ -76,7 +91,6 @@ pipeline {
     stage('Smoke Test') {
       steps {
         sh """
-          # Wait for deployment rollout
           kubectl rollout status deployment/${APP_NAME} --timeout=120s
 
           NODE_IP=\$(minikube ip)
