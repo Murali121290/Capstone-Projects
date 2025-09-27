@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 import sqlite3
-import os
+import subprocess
 
 app = Flask(__name__)
 DB = "data.db"
@@ -15,22 +15,25 @@ def init_db():
 
 @app.route("/search")
 def search():
-    # VULN: SQL injection via string concatenation
     q = request.args.get("q","")
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-    query = f"SELECT id, username, notes FROM users WHERE username LIKE '%{q}%'"
-    c.execute(query)
+    # FIX: parameterized query prevents SQL injection
+    c.execute("SELECT id, username, notes FROM users WHERE username LIKE ?", (f"%{q}%",))
     rows = c.fetchall()
     conn.close()
     return jsonify(rows)
 
 @app.route("/run")
 def run_cmd():
-    # VULN: command injection via os.system using user input
-    cmd = request.args.get("cmd", "echo hello")
-    os.system(f"{cmd}")   # DANGEROUS
-    return "OK"
+    # FIX: disallow arbitrary shell. Only allow whitelisted commands.
+    cmd = request.args.get("cmd", "")
+    allowed = {"echo": ["hello","test"], "date": []}
+    parts = cmd.split()
+    if not parts or parts[0] not in allowed:
+        return "Not allowed", 403
+    proc = subprocess.run([parts[0]] + parts[1:], capture_output=True, text=True)
+    return proc.stdout or proc.stderr
 
 if __name__ == "__main__":
     init_db()
