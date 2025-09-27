@@ -32,10 +32,11 @@ pipeline {
     stage('Quality Gate') {
       catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
         timeout(time: 10, unit: 'MINUTES') {
-            waitForQualityGate abortPipeline: true
+          waitForQualityGate abortPipeline: true
         }
       }
     }
+
     stage('Build Docker Image') {
       steps {
         sh """
@@ -55,8 +56,13 @@ pipeline {
     stage('Deploy to Minikube') {
       steps {
         sh """
-          # Replace placeholder image in deployment manifest
-          sed -i 's#IMAGE_PLACEHOLDER#${APP_NAME}:${IMAGE_TAG}#g' k8s/deployment.yaml
+          # Export environment variables for envsubst
+          export APP_NAME=${APP_NAME}
+          export IMAGE_TAG=${APP_NAME}:${IMAGE_TAG}
+
+          # Generate final manifests from templates
+          envsubst < k8s/deployment-template.yaml > k8s/deployment.yaml
+          envsubst < k8s/service-template.yaml > k8s/service.yaml
 
           # Apply manifests
           kubectl apply -f k8s/deployment.yaml
@@ -67,14 +73,30 @@ pipeline {
 
     stage('Smoke Test') {
       steps {
-        sh '''
-          kubectl rollout status deployment/myweb --timeout=120s
-          NODE_IP=$(minikube ip)
-          NODE_PORT=$(kubectl get svc myweb -o=jsonpath='{.spec.ports[0].nodePort}')
-          echo "Testing app at http://$NODE_IP:$NODE_PORT/"
-          sleep 5
-          curl -f http://$NODE_IP:$NODE_PORT/ || (echo "App not reachable" && exit 1)
-        '''
+        sh """
+          # Wait for deployment rollout
+          kubectl rollout status deployment/${APP_NAME} --timeout=120s
+
+          NODE_IP=\$(minikube ip)
+          NODE_PORT=\$(kubectl get svc ${APP_NAME} -o=jsonpath='{.spec.ports[0].nodePort}')
+          URL="http://\$NODE_IP:\$NODE_PORT/"
+
+          echo "Testing app at \$URL"
+
+          MAX_RETRIES=5
+          RETRY_COUNT=0
+          until curl -f \$URL; do
+            RETRY_COUNT=\$((RETRY_COUNT+1))
+            if [ \$RETRY_COUNT -ge \$MAX_RETRIES ]; then
+              echo "App not reachable after \$MAX_RETRIES attempts"
+              exit 1
+            fi
+            echo "Retry \$RETRY_COUNT of \$MAX_RETRIES..."
+            sleep 5
+          done
+
+          echo "App is reachable!"
+        """
       }
     }
   }
