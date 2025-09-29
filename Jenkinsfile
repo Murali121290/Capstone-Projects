@@ -44,10 +44,10 @@ pipeline {
                 script {
                     sh """
                         set -e
-                        docker --version
+                        sudo docker --version
                         echo "Building ${APP_NAME}:${IMAGE_TAG}"
-                        docker build -t ${APP_NAME}:${IMAGE_TAG} .
-                        docker tag ${APP_NAME}:${IMAGE_TAG} ${APP_NAME}:latest
+                        sudo docker build -t ${APP_NAME}:${IMAGE_TAG} .
+                        sudo docker tag ${APP_NAME}:${IMAGE_TAG} ${APP_NAME}:latest
                     """
                 }
             }
