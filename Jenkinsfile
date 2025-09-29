@@ -44,7 +44,7 @@ pipeline {
                 script {
                     sh """
                         set -e
-                        sudo docker --version
+                        docker --version
                         echo "Building ${APP_NAME}:${IMAGE_TAG}"
                         docker build -t ${APP_NAME}:${IMAGE_TAG} .
                         docker tag ${APP_NAME}:${IMAGE_TAG} ${APP_NAME}:latest
