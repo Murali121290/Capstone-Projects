@@ -7,6 +7,8 @@ pipeline {
         APP_NAME         = 'myapp'
         IMAGE_TAG        = "${env.BUILD_NUMBER ?: 'latest'}"
         MINIKUBE_PROFILE = 'minikube'
+        DOCKER_BUILDKIT  = '1'   // enable BuildKit globally
+        DOCKERFILE_PATH  = 'Dockerfile' // change this if your Dockerfile is in a subfolder (e.g. 'app/Dockerfile')
     }
 
     stages {
@@ -41,13 +43,12 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                script {
+                dir("${WORKSPACE}") {
                     sh """
                         set -e
                         docker --version
-                        echo "Building ${APP_NAME}:${IMAGE_TAG}"
-                        docker build -t ${APP_NAME}:${IMAGE_TAG} .
-                        docker tag ${APP_NAME}:${IMAGE_TAG} ${APP_NAME}:latest
+                        echo "Building ${APP_NAME}:${IMAGE_TAG} using ${DOCKERFILE_PATH}"
+                        docker build -t ${APP_NAME}:${IMAGE_TAG} -t ${APP_NAME}:latest -f ${DOCKERFILE_PATH} .
                     """
                 }
             }
