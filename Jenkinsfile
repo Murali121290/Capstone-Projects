@@ -54,8 +54,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh "docker --version"
-                    sh "docker build -t ${APP_NAME}:${IMAGE_TAG} ."
+                    sh "sudo docker --version"
+                    sh "sudo docker build -t ${APP_NAME}:${IMAGE_TAG} ."
                 }
             }
         }
