@@ -46,8 +46,8 @@ pipeline {
                         set -e
                         sudo docker --version
                         echo "Building ${APP_NAME}:${IMAGE_TAG}"
-                        sudo docker build -t ${APP_NAME}:${IMAGE_TAG} .
-                        sudo docker tag ${APP_NAME}:${IMAGE_TAG} ${APP_NAME}:latest
+                        docker build -t ${APP_NAME}:${IMAGE_TAG} .
+                        docker tag ${APP_NAME}:${IMAGE_TAG} ${APP_NAME}:latest
                     """
                 }
             }
