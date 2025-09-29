@@ -4,25 +4,19 @@ pipeline {
     options { timestamps(); disableConcurrentBuilds() }
 
     environment {
-        APP_NAME       = 'myapp'
-        IMAGE_TAG      = "${env.BUILD_NUMBER ?: 'latest'}"
+        APP_NAME         = 'myapp'
+        IMAGE_TAG        = "${env.BUILD_NUMBER ?: 'latest'}"
         MINIKUBE_PROFILE = 'minikube'
     }
 
     stages {
 
-        // ----------------------
-        // Stage 1: Checkout
-        // ----------------------
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        // ----------------------
-        // Stage 2: SonarQube Analysis
-        // ----------------------
         stage('SonarQube Analysis') {
             steps {
                 script {
@@ -37,9 +31,6 @@ pipeline {
             }
         }
 
-        // ----------------------
-        // Stage 3: Quality Gate
-        // ----------------------
         stage('Quality Gate') {
             steps {
                 timeout(time: 30, unit: 'MINUTES') {
@@ -48,43 +39,36 @@ pipeline {
             }
         }
 
-        // ----------------------
-        // Stage 4: Build Docker Image
-        // ----------------------
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh "sudo docker --version"
-                    sh "sudo docker build -t ${APP_NAME}:${IMAGE_TAG} ."
+                    sh """
+                        set -e
+                        docker --version
+                        echo "Building ${APP_NAME}:${IMAGE_TAG}"
+                        docker build -t ${APP_NAME}:${IMAGE_TAG} .
+                        docker tag ${APP_NAME}:${IMAGE_TAG} ${APP_NAME}:latest
+                    """
                 }
             }
         }
 
-        // ----------------------
-        // Stage 5: Load Image into Minikube
-        // ----------------------
         stage('Load Image into Minikube') {
             steps {
                 sh "minikube image load ${APP_NAME}:${IMAGE_TAG} --profile=${MINIKUBE_PROFILE}"
             }
         }
 
-        // ----------------------
-        // Stage 6: Deploy to Kubernetes
-        // ----------------------
         stage('Deploy to Minikube') {
             steps {
                 sh """
                     kubectl apply -f k8s/deployment.yaml
                     kubectl apply -f k8s/service.yaml
-                    kubectl set image deployment/${APP_NAME} ${APP_NAME}=${APP_NAME}:${IMAGE_TAG}
+                    kubectl set image deployment/${APP_NAME} ${APP_NAME}=${APP_NAME}:${IMAGE_TAG} || true
                 """
             }
         }
 
-        // ----------------------
-        // Stage 7: Smoke Test
-        // ----------------------
         stage('Smoke Test') {
             steps {
                 script {
@@ -94,9 +78,15 @@ pipeline {
                         NODE_PORT=\$(kubectl get svc ${APP_NAME} -o=jsonpath='{.spec.ports[0].nodePort}')
                         URL="http://\$NODE_IP:\$NODE_PORT/"
                         echo "Testing app at \$URL"
-                        # Retry curl up to 5 times
                         for i in {1..5}; do
-                            curl -f \$URL && break || sleep 5
+                          echo "Attempt \$i: checking app..."
+                          if curl -fs \$URL; then
+                            echo "App is reachable ✅"
+                            break
+                          else
+                            echo "App not ready, retrying in 5s..."
+                            sleep 5
+                          fi
                         done
                     """
                 }
@@ -104,9 +94,6 @@ pipeline {
         }
     }
 
-    // ----------------------
-    // Post Actions
-    // ----------------------
     post {
         always {
             echo "Cleaning up workspace"
