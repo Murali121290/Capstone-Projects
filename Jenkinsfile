@@ -7,38 +7,33 @@ pipeline {
         APP_NAME         = 'myapp'
         IMAGE_TAG        = "${env.BUILD_NUMBER ?: 'latest'}"
         MINIKUBE_PROFILE = 'minikube'
+        REGISTRY         = 'docker.io'                  // Docker Hub
+        DOCKER_CREDENTIALS = 'docker-hub-creds'         // Jenkins credentials ID
     }
 
     stages {
-        // ----------------------
-        // Stage 1: Checkout
-        // ----------------------
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        // ----------------------
-        // Stage 2: SonarQube Analysis
-        // ----------------------
         stage('SonarQube Analysis') {
             steps {
                 script {
                     def scannerHome = tool 'SonarScanner'
                     withSonarQubeEnv('SonarQube') {
                         sh """
-                            set -e
-                            "${scannerHome}/bin/sonar-scanner"
+                            ${scannerHome}/bin/sonar-scanner \
+                              -Dsonar.projectKey=${APP_NAME} \
+                              -Dsonar.sources=. \
+                              -Dsonar.host.url=http://sonarqube:9000
                         """
                     }
                 }
             }
         }
 
-        // ----------------------
-        // Stage 3: Quality Gate
-        // ----------------------
         stage('Quality Gate') {
             steps {
                 timeout(time: 30, unit: 'MINUTES') {
@@ -47,31 +42,31 @@ pipeline {
             }
         }
 
-        // ----------------------
-        // Stage 4: Build Docker Image
-        // ----------------------
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh "docker --version"
-                    // Use ./ if Dockerfile is in root, or ./myapp if inside myapp/
                     sh "docker build -t ${APP_NAME}:${IMAGE_TAG} ."
                 }
             }
         }
 
-        // ----------------------
-        // Stage 5: Load Image into Minikube
-        // ----------------------
+        stage('Push to Docker Hub') {
+            steps {
+                script {
+                    docker.withRegistry("https://${REGISTRY}", "${DOCKER_CREDENTIALS}") {
+                        docker.image("${APP_NAME}:${IMAGE_TAG}").push()
+                        docker.image("${APP_NAME}:${IMAGE_TAG}").push("latest")
+                    }
+                }
+            }
+        }
+
         stage('Load Image into Minikube') {
             steps {
                 sh "minikube image load ${APP_NAME}:${IMAGE_TAG} --profile=${MINIKUBE_PROFILE}"
             }
         }
 
-        // ----------------------
-        // Stage 6: Deploy to Kubernetes
-        // ----------------------
         stage('Deploy to Minikube') {
             steps {
                 sh """
@@ -82,9 +77,6 @@ pipeline {
             }
         }
 
-        // ----------------------
-        // Stage 7: Smoke Test
-        // ----------------------
         stage('Smoke Test') {
             steps {
                 script {
@@ -103,9 +95,6 @@ pipeline {
         }
     }
 
-    // ----------------------
-    // Post Actions
-    // ----------------------
     post {
         always {
             echo "Cleaning up workspace"
