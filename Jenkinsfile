@@ -4,8 +4,8 @@ pipeline {
     options { timestamps(); disableConcurrentBuilds() }
 
     environment {
-        APP_NAME       = 'myapp'
-        IMAGE_TAG      = "${env.BUILD_NUMBER ?: 'latest'}"
+        APP_NAME         = 'myapp'
+        IMAGE_TAG        = "${env.BUILD_NUMBER ?: 'latest'}"
         MINIKUBE_PROFILE = 'minikube'
     }
 
@@ -54,10 +54,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh "sudo docker --version"
-					sh "sudo usermod -aG docker jenkins"
-					sh "sudo systemctl restart jenkins"
-                    sh "sudo docker build -t ${APP_NAME}:${IMAGE_TAG} ."
+                    sh "docker --version"
+                    sh "docker build -t ${APP_NAME}:${IMAGE_TAG} ."
                 }
             }
         }
