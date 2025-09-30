@@ -10,7 +10,6 @@ pipeline {
     }
 
     stages {
-
         // ----------------------
         // Stage 1: Checkout
         // ----------------------
@@ -55,6 +54,7 @@ pipeline {
             steps {
                 script {
                     sh "docker --version"
+                    // Use ./ if Dockerfile is in root, or ./myapp if inside myapp/
                     sh "docker build -t ${APP_NAME}:${IMAGE_TAG} ."
                 }
             }
@@ -94,7 +94,6 @@ pipeline {
                         NODE_PORT=\$(kubectl get svc ${APP_NAME} -o=jsonpath='{.spec.ports[0].nodePort}')
                         URL="http://\$NODE_IP:\$NODE_PORT/"
                         echo "Testing app at \$URL"
-                        # Retry curl up to 5 times
                         for i in {1..5}; do
                             curl -f \$URL && break || sleep 5
                         done
