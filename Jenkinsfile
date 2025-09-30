@@ -54,9 +54,10 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh "docker --version"
-					sh "
-                    sh "docker build -t ${APP_NAME}:${IMAGE_TAG} ."
+                    sh "sudo docker --version"
+					sh "sudo usermod -aG docker jenkins"
+					sh "sudo systemctl restart jenkins"
+                    sh "sudo docker build -t ${APP_NAME}:${IMAGE_TAG} ."
                 }
             }
         }
