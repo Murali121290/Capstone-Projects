@@ -48,13 +48,7 @@ pipeline {
             }
         }
 
-        stage('Load Image into Minikube') {
-            steps {
-                sh "minikube image load ${APP_NAME}:${IMAGE_TAG} --profile=${MINIKUBE_PROFILE}"
-            }
-        }
-
-        stage('Deploy to Minikube') {
+       stage('Deploy to Minikube') {
             steps {
                 sh """
                     kubectl apply -f k8s/deployment.yaml
