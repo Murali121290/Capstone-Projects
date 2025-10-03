@@ -48,17 +48,6 @@ pipeline {
             }
         }
 
-        stage('Push to Docker Hub') {
-            steps {
-                script {
-                    docker.withRegistry("https://${REGISTRY}", "${DOCKER_CREDENTIALS}") {
-                        docker.image("${APP_NAME}:${IMAGE_TAG}").push()
-                        docker.image("${APP_NAME}:${IMAGE_TAG}").push("latest")
-                    }
-                }
-            }
-        }
-
         stage('Load Image into Minikube') {
             steps {
                 sh "minikube image load ${APP_NAME}:${IMAGE_TAG} --profile=${MINIKUBE_PROFILE}"
