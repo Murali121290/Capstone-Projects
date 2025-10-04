@@ -4,33 +4,19 @@ pipeline {
     options { timestamps(); disableConcurrentBuilds() }
 
     environment {
-        APP_NAME          = 'myapp'
-        IMAGE_TAG         = "${env.BUILD_NUMBER ?: 'latest'}"
-        REGISTRY          = 'docker.io'
-        DOCKER_CREDENTIALS = 'docker-hub-creds'
-        K3S_NODE_IP       = ''
+        APP_NAME           = 'myapp'
+        IMAGE_TAG          = "${env.BUILD_NUMBER ?: 'latest'}"
+        K3S_NODE_IP        = ''   // will be set dynamically
     }
 
     stages {
         stage('Init Vars') {
             steps {
                 script {
-                    def ip = sh(script: "hostname -I | awk '{print \$1}'", returnStdout: true).trim()
+                    // Use AWS metadata service to get EC2 private IP
+                    def ip = sh(script: "curl -s http://169.254.169.254/latest/meta-data/local-ipv4", returnStdout: true).trim()
                     env.K3S_NODE_IP = ip
                     echo "K3S_NODE_IP resolved to: ${env.K3S_NODE_IP}"
-                }
-            }
-        }
-
-        stage('Patch kubeconfig') {
-            steps {
-                script {
-                    sh """
-                        echo "Patching kubeconfig..."
-                        NODE_IP=\$(hostname -I | awk '{print \$1}')
-                        sed -i "s#https://.*:6443#https://\$NODE_IP:6443#" /var/jenkins_home/.kube/config
-                        echo "Updated kubeconfig to use \$NODE_IP"
-                    """
                 }
             }
         }
@@ -84,6 +70,7 @@ pipeline {
                 sh """
                     kubectl apply -f k8s/deployment.yaml
                     kubectl apply -f k8s/service.yaml
+                    # Override placeholder with the freshly built local image
                     kubectl set image deployment/${APP_NAME} ${APP_NAME}=${APP_NAME}:${IMAGE_TAG}
                 """
             }
@@ -103,7 +90,7 @@ pipeline {
                     echo "Testing app at \$URL"
 
                     for i in {1..5}; do
-                        curl -f \$URL && echo "App is up!" && break || sleep 5
+                        curl -f \$URL && echo "✅ App is up!" && break || sleep 5
                     done
                 """
             }
