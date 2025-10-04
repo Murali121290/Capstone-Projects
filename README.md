@@ -1,13 +1,13 @@
-# All-in-One CI/CD on AWS (Terraform + Jenkins + SonarQube + Minikube)
+# All-in-One CI/CD on AWS (Terraform + Jenkins + SonarQube + K3s)
 
 ## Overview
-This project provisions an EC2 instance via Terraform and boots Jenkins, SonarQube, and Minikube on that instance using Docker. A vulnerable Flask app (`app.py`) is provided with two seeded vulnerabilities (SQL injection and insecure `eval`). The Jenkins pipeline runs SonarQube analysis (first run expected to fail Quality Gate), then after you fix the vulnerabilities it will build, push to ECR, and deploy to Minikube.
+This project provisions an EC2 instance via Terraform and boots Jenkins, SonarQube, and K3s on that instance using Docker. A vulnerable Flask app (`app.py`) is provided with two seeded vulnerabilities (SQL injection and insecure `eval`). The Jenkins pipeline runs SonarQube analysis (first run expected to fail Quality Gate), then after you fix the vulnerabilities it will build, push to ECR, and deploy to K3s.
 
 ## High-level architecture
 
 GitHub --> Jenkins --> SonarQube
                      \
-                      --> Docker image --> ECR --> Minikube
+                      --> Docker image --> ECR --> K3s
 
 ## Prerequisites
 - AWS CLI configured (`aws configure`)
@@ -51,6 +51,6 @@ Or directly with AWS CLI:
 2. Manually clean up ECR images if needed.
 
 ## Notes, limitations, and tips
-- Minikube inside an EC2 instance uses Docker driver (no nested VM). Ensure instance type has enough memory (>=4GB). We used `t3.medium` as a starting point.
+- K3s inside an EC2 instance uses Docker driver (no nested VM). Ensure instance type has enough memory (>=4GB). We used `t3.medium` as a starting point.
 - The user-data script does a lot of heavy lifting; it may take several minutes for services to become healthy.
 - SonarQube may require tuning for production - this is a demo setup for CI/CD learning.
