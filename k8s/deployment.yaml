@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: myapp
-          image: myapp:IMAGE_PLACEHOLDER   # Jenkins will replace IMAGE_PLACEHOLDER with actual tag
+          image: myapp:IMAGE_PLACEHOLDER
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000
