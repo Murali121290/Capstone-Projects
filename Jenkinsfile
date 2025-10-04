@@ -4,14 +4,23 @@ pipeline {
     options { timestamps(); disableConcurrentBuilds() }
 
     environment {
-        APP_NAME         = 'myapp'
-        IMAGE_TAG        = "${env.BUILD_NUMBER ?: 'latest'}"
-        REGISTRY         = 'docker.io'                  // Docker Hub
-        DOCKER_CREDENTIALS = 'docker-hub-creds'         // Jenkins credentials ID
-        K3S_NODE_IP      = sh(script: "hostname -I | awk '{print $1}'", returnStdout: true).trim()
+        APP_NAME           = 'myapp'
+        IMAGE_TAG          = "${env.BUILD_NUMBER ?: 'latest'}"
+        REGISTRY           = 'docker.io'          // Docker Hub
+        DOCKER_CREDENTIALS = 'docker-hub-creds'   // Jenkins credentials ID
     }
 
     stages {
+        stage('Init Vars') {
+            steps {
+                script {
+                    // Resolve Node IP dynamically and store in environment
+                    env.K3S_NODE_IP = sh(script: "hostname -I | awk '{print \$1}'", returnStdout: true).trim()
+                    echo "K3S_NODE_IP resolved to: ${env.K3S_NODE_IP}"
+                }
+            }
+        }
+
         stage('Checkout') {
             steps {
                 checkout scm
