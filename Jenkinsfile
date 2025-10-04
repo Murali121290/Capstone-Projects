@@ -59,7 +59,7 @@ pipeline {
             }
         }
 
-        stage('K8s Connectivity Check') {
+        stage('K3s Connectivity Check') {
             steps {
                 script {
                     echo "Checking cluster connectivity..."
