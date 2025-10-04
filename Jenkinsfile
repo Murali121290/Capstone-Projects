@@ -6,9 +6,9 @@ pipeline {
     environment {
         APP_NAME         = 'myapp'
         IMAGE_TAG        = "${env.BUILD_NUMBER ?: 'latest'}"
-        MINIKUBE_PROFILE = 'minikube'
         REGISTRY         = 'docker.io'                  // Docker Hub
         DOCKER_CREDENTIALS = 'docker-hub-creds'         // Jenkins credentials ID
+        K3S_NODE_IP      = sh(script: "hostname -I | awk '{print $1}'", returnStdout: true).trim()
     }
 
     stages {
@@ -48,7 +48,7 @@ pipeline {
             }
         }
 
-       stage('Deploy to Minikube') {
+        stage('Deploy to k3s') {
             steps {
                 sh """
                     kubectl apply -f k8s/deployment.yaml
@@ -63,9 +63,8 @@ pipeline {
                 script {
                     sh """
                         kubectl rollout status deployment/${APP_NAME} --timeout=120s
-                        NODE_IP=\$(minikube ip --profile=${MINIKUBE_PROFILE})
                         NODE_PORT=\$(kubectl get svc ${APP_NAME} -o=jsonpath='{.spec.ports[0].nodePort}')
-                        URL="http://\$NODE_IP:\$NODE_PORT/"
+                        URL="http://${K3S_NODE_IP}:\$NODE_PORT/"
                         echo "Testing app at \$URL"
                         for i in {1..5}; do
                             curl -f \$URL && break || sleep 5
