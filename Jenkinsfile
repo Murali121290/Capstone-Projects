@@ -4,9 +4,9 @@ pipeline {
     options { timestamps(); disableConcurrentBuilds() }
 
     environment {
-        APP_NAME           = 'myapp'
-        IMAGE_TAG          = "${env.BUILD_NUMBER ?: 'latest'}"
-        K3S_NODE_IP        = ''   // will be set dynamically
+        APP_NAME    = 'myapp'
+        IMAGE_TAG   = "${env.BUILD_NUMBER ?: 'latest'}"
+        K3S_NODE_IP = ''   // will be set dynamically
     }
 
     stages {
@@ -78,21 +78,31 @@ pipeline {
 
         stage('Smoke Test') {
             steps {
-                sh """
-                    echo "Waiting for rollout..."
-                    kubectl rollout status deployment/${APP_NAME} --timeout=120s
+                script {
+                    sh """
+                        echo "Waiting for rollout..."
+                        kubectl rollout status deployment/${APP_NAME} --timeout=120s
 
-                    echo "Checking pods..."
-                    kubectl get pods -o wide
+                        echo "Checking pods..."
+                        kubectl get pods -o wide
 
-                    NODE_PORT=\$(kubectl get svc ${APP_NAME} -o=jsonpath='{.spec.ports[0].nodePort}')
-                    URL="http://${K3S_NODE_IP}:\$NODE_PORT/"
-                    echo "Testing app at \$URL"
+                        NODE_PORT=\$(kubectl get svc ${APP_NAME} -o=jsonpath='{.spec.ports[0].nodePort}')
 
-                    for i in {1..5}; do
-                        curl -f \$URL && echo "✅ App is up!" && break || sleep 5
-                    done
-                """
+                        # Get private and public IPs
+                        PRIVATE_IP=\$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
+                        PUBLIC_IP=\$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+
+                        echo "Testing with private IP: http://\$PRIVATE_IP:\$NODE_PORT/"
+                        for i in {1..5}; do
+                            curl -f http://\$PRIVATE_IP:\$NODE_PORT/ && echo "✅ Private IP test OK" && break || sleep 5
+                        done
+
+                        echo "Testing with public IP: http://\$PUBLIC_IP:\$NODE_PORT/"
+                        for i in {1..5}; do
+                            curl -f http://\$PUBLIC_IP:\$NODE_PORT/ && echo "✅ Public IP test OK" && break || sleep 5
+                        done
+                    """
+                }
             }
         }
     }
