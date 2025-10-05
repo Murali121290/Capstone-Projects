@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: myapp
-          image: myapp:IMAGE_PLACEHOLDER
+          image: myapp:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000
@@ -32,3 +32,4 @@ spec:
             limits:
               memory: "256Mi"
               cpu: "500m"
+      restartPolicy: Always
