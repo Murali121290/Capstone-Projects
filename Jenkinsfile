@@ -62,14 +62,44 @@ pipeline {
             }
         }
 
-        stage('Load Image into K3s') {
+        stage('Load Image into K3s via kubectl') {
             steps {
                 script {
-                    echo "📦 Loading Docker image into K3s (containerd)..."
+                    echo "📦 Loading Docker image into K3s using kubectl..."
                     sh """
                         set -e
-                        docker save ${APP_NAME}:${IMAGE_TAG} | k3s ctr images import -
-                        echo "✅ Image ${APP_NAME}:${IMAGE_TAG} imported successfully into K3s."
+                        docker save ${APP_NAME}:${IMAGE_TAG} -o /tmp/${APP_NAME}.tar
+                        kubectl delete job image-loader --ignore-not-found=true
+
+                        # Create a temporary job to load the image into all nodes
+                        cat <<EOF | kubectl apply -f -
+                        apiVersion: batch/v1
+                        kind: Job
+                        metadata:
+                          name: image-loader
+                        spec:
+                          template:
+                            spec:
+                              containers:
+                              - name: loader
+                                image: busybox
+                                command: ["sh", "-c", "ctr images import /image/${APP_NAME}.tar"]
+                                volumeMounts:
+                                - name: image
+                                  mountPath: /image
+                              restartPolicy: Never
+                              hostPID: true
+                              hostNetwork: true
+                              volumes:
+                              - name: image
+                                hostPath:
+                                  path: /tmp
+                        EOF
+
+                        echo "Waiting for image-loader job to complete..."
+                        kubectl wait --for=condition=complete --timeout=120s job/image-loader || true
+                        kubectl delete job image-loader --ignore-not-found=true
+                        echo "✅ Image ${APP_NAME}:${IMAGE_TAG} loaded successfully into K3s."
                     """
                 }
             }
