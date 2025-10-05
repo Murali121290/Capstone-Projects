@@ -54,7 +54,7 @@ pipeline {
                 script {
                     echo "Building Docker image ${APP_NAME}:${IMAGE_TAG} ..."
                     sh """
-                        export DOCKER_BUILDKIT=1
+                        set -e
                         docker build -t ${APP_NAME}:${IMAGE_TAG} .
                     """
                 }
