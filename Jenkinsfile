@@ -10,6 +10,7 @@ pipeline {
     }
 
     stages {
+
         stage('Init Vars') {
             steps {
                 script {
@@ -52,7 +53,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    echo "Building Docker image ${APP_NAME}:${IMAGE_TAG} ..."
+                    echo "🐳 Building Docker image ${APP_NAME}:${IMAGE_TAG} ..."
                     sh """
                         set -e
                         docker build -t ${APP_NAME}:${IMAGE_TAG} .
@@ -61,10 +62,23 @@ pipeline {
             }
         }
 
+        stage('Load Image into K3s') {
+            steps {
+                script {
+                    echo "📦 Loading Docker image into K3s (containerd)..."
+                    sh """
+                        set -e
+                        docker save ${APP_NAME}:${IMAGE_TAG} | sudo k3s ctr images import -
+                        echo "✅ Image ${APP_NAME}:${IMAGE_TAG} imported successfully into K3s."
+                    """
+                }
+            }
+        }
+
         stage('K3s Connectivity Check') {
             steps {
                 script {
-                    echo "Verifying Kubernetes cluster connectivity..."
+                    echo "🔍 Verifying Kubernetes cluster connectivity..."
                     sh """
                         kubectl cluster-info
                         kubectl get nodes -o wide
@@ -73,11 +87,12 @@ pipeline {
             }
         }
 
-        stage('Deploy to k3s') {
+        stage('Deploy to K3s') {
             steps {
                 script {
-                    echo "Deploying ${APP_NAME} to K3s..."
+                    echo "🚀 Deploying ${APP_NAME} to K3s..."
                     sh """
+                        set -e
                         kubectl apply -f k8s/deployment.yaml
                         kubectl apply -f k8s/service.yaml
                         kubectl set image deployment/${APP_NAME} ${APP_NAME}=${APP_NAME}:${IMAGE_TAG} || true
@@ -89,7 +104,7 @@ pipeline {
         stage('Smoke Test') {
             steps {
                 script {
-                    echo "Performing smoke test..."
+                    echo "🧪 Performing smoke test..."
                     sh """
                         echo "Waiting for rollout..."
                         kubectl rollout status deployment/${APP_NAME} --timeout=120s
@@ -118,7 +133,7 @@ pipeline {
 
     post {
         always {
-            echo "Cleaning up workspace"
+            echo "🧹 Cleaning up workspace"
             cleanWs()
         }
         failure {
