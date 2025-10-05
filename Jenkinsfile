@@ -68,7 +68,7 @@ pipeline {
                     echo "📦 Loading Docker image into K3s (containerd)..."
                     sh """
                         set -e
-                        docker save ${APP_NAME}:${IMAGE_TAG} | sudo k3s ctr images import -
+                        docker save ${APP_NAME}:${IMAGE_TAG} | k3s ctr images import -
                         echo "✅ Image ${APP_NAME}:${IMAGE_TAG} imported successfully into K3s."
                     """
                 }
