@@ -56,50 +56,16 @@ pipeline {
             }
         }
 
-        stage('Load Image into K3s via kubectl') {
+        stage('Load Image into K3s') {
             steps {
                 script {
-                    echo "📦 Loading Docker image into K3s using kubectl..."
-                    sh '''
+                    echo "📦 Loading Docker image into K3s containerd..."
+                    sh """
                         set -e
                         docker save ${APP_NAME}:${IMAGE_TAG} -o /tmp/${APP_NAME}.tar
-                        kubectl delete job image-loader --ignore-not-found=true
-
-                        cat <<EOF | kubectl apply -f -
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: image-loader
-spec:
-  template:
-    spec:
-      hostNetwork: true
-      hostPID: true
-      containers:
-      - name: loader
-        image: rancher/k3s:v1.33.5-k3s1
-        command:
-          - sh
-          - -c
-          - ctr images import /image/${APP_NAME}.tar
-        securityContext:
-          privileged: true
-        volumeMounts:
-        - name: image
-          mountPath: /image
-      restartPolicy: Never
-      volumes:
-      - name: image
-        hostPath:
-          path: /tmp
-EOF
-
-                        echo "⏳ Waiting for image-loader job to complete..."
-                        kubectl wait --for=condition=complete --timeout=180s job/image-loader || true
-                        kubectl logs job/image-loader || true
-                        kubectl delete job image-loader --ignore-not-found=true
-                        echo "✅ Image ${APP_NAME}:${IMAGE_TAG} loaded successfully into K3s."
-                    '''
+                        sudo ctr --address /run/k3s/containerd/containerd.sock images import /tmp/${APP_NAME}.tar
+                        echo "✅ Image ${APP_NAME}:${IMAGE_TAG} imported successfully into K3s."
+                    """
                 }
             }
         }
