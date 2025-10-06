@@ -63,7 +63,7 @@ pipeline {
                     sh """
                         set -e
                         docker save ${APP_NAME}:${IMAGE_TAG} -o /tmp/${APP_NAME}.tar
-                        sudo ctr --address /run/k3s/containerd/containerd.sock images import /tmp/${APP_NAME}.tar
+                        ctr --address /run/k3s/containerd/containerd.sock images import /tmp/${APP_NAME}.tar
                         echo "✅ Image ${APP_NAME}:${IMAGE_TAG} imported successfully into K3s."
                     """
                 }
